@@ -1,0 +1,6 @@
+//! Save local settings
+
+pub const OC_URL: &str = "<URL>";
+
+pub const USERNAME: &str = "<username>";
+pub const PASSWD: &str = "<password>";
