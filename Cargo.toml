@@ -9,7 +9,6 @@ edition = "2018"
 [dependencies]
 url = "2.1"
 reqwest = "0.10"
-tokio = { version ="0.2", features=["full"]}
-#xml-rs = "0.8"
+tokio = { version ="0.2", features=["full"] }
 minidom = "0.12"
 strfmt = "0.1.6"

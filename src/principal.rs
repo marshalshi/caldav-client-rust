@@ -9,20 +9,20 @@ use crate::settings;
 use crate::utils::{find_elem, find_elems};
 
 static HOMESET_BODY: &str = r#"
-    <d:propfind xmlns:d="DAV:" >
+    <d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" >
       <d:self/>
       <d:prop>
-         <c:calendar-home-set xmlns:c="urn:ietf:params:xml:ns:caldav" />
+        <c:calendar-home-set />
       </d:prop>
     </d:propfind>
 "#;
 
 static CAL_BODY: &str = r#"
-    <d:propfind xmlns:d="DAV:">
+    <d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" >
        <d:prop>
-           <d:displayname />
-           <d:resourcetype />
-           <c:supported-calendar-component-set xmlns:c="urn:ietf:params:xml:ns:caldav" />
+         <d:displayname />
+         <d:resourcetype />
+         <c:supported-calendar-component-set />
        </d:prop>
     </d:propfind>
 "#;
@@ -30,17 +30,17 @@ static CAL_BODY: &str = r#"
 // TODO We only fetch `VEVENT` here but this value should from CAL_BODY result.
 static EVENT_BODY_TEMP: &str = r#"
     <c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">
-        <d:prop>
-            <d:getetag />
-            <c:calendar-data />
-        </d:prop>
-        <c:filter>
-            <c:comp-filter name="VCALENDAR">
-                <c:comp-filter name="VEVENT" >
-                  <c:time-range start="{start}" end="{end}" />
-                </c:comp-filter>
-            </c:comp-filter>
-        </c:filter>
+      <d:prop>
+        <d:getetag />
+        <c:calendar-data />
+      </d:prop>
+      <c:filter>
+        <c:comp-filter name="VCALENDAR">
+          <c:comp-filter name="VEVENT" >
+            <c:time-range start="{start}" end="{end}" />
+          </c:comp-filter>
+        </c:comp-filter>
+      </c:filter>
     </c:calendar-query>
 "#;
 
@@ -58,6 +58,32 @@ impl Principal {
             calendar_home_set_url: None,
             calendars: Vec::new(),
         }
+    }
+
+    pub async fn get_cal_home_set(&mut self, client: &Client) -> Result<()> {
+        let method = Method::from_bytes(b"PROPFIND")
+            .expect("cannot create PROPFIND method. principal");
+
+        let res = client
+            .request(method, self.url.as_str())
+            .header("Depth", 0)
+            .header(CONTENT_TYPE, "application/xml")
+            .basic_auth(settings::USERNAME, Some(settings::PASSWD))
+            .body(HOMESET_BODY)
+            .send()
+            .await?;
+
+        let text = res.text().await?;
+
+        let root: Element = text.parse().unwrap();
+        let chs = find_elem(&root, "calendar-home-set".to_string()).unwrap();
+        let chs_href = find_elem(chs, "href".to_string()).unwrap();
+        let chs_str = chs_href.text();
+
+        let mut chs_url = self.url.clone();
+        chs_url.set_path(&chs_str);
+        self.calendar_home_set_url = Some(chs_url);
+        Ok(())
     }
 
     pub async fn get_calendars(&mut self, client: &Client) -> Result<()> {
@@ -95,32 +121,6 @@ impl Principal {
             }
         }
 
-        Ok(())
-    }
-
-    pub async fn get_cal_home_set(&mut self, client: &Client) -> Result<()> {
-        let method = Method::from_bytes(b"PROPFIND")
-            .expect("cannot create PROPFIND method. principal");
-
-        let res = client
-            .request(method, self.url.as_str())
-            .header("Depth", 0)
-            .header(CONTENT_TYPE, "application/xml")
-            .basic_auth(settings::USERNAME, Some(settings::PASSWD))
-            .body(HOMESET_BODY)
-            .send()
-            .await?;
-
-        let text = res.text().await?;
-
-        let root: Element = text.parse().unwrap();
-        let chs = find_elem(&root, "calendar-home-set".to_string()).unwrap();
-        let chs_href = find_elem(chs, "href".to_string()).unwrap();
-        let chs_str = chs_href.text();
-
-        let mut chs_url = self.url.clone();
-        chs_url.set_path(&chs_str);
-        self.calendar_home_set_url = Some(chs_url);
         Ok(())
     }
 
